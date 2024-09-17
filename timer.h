@@ -41,7 +41,7 @@ public:
 				std::this_thread::sleep_until(delta);
 			}
 		});
-		m_thread.join();
+		m_thread.detach();
 	}
 
 	/*
@@ -49,6 +49,7 @@ public:
 	 */
 	void stop() {
 		m_running = false;
+		m_thread.~thread();
 	}
 
 	/*

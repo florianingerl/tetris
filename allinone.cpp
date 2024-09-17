@@ -9,12 +9,16 @@
 #include <vector>
 #include <list>
 
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
 #include "timer.h"
 
 #define unit 20
 using namespace cv;
 
-void clearImage(Mat img);
+void clearImage(Mat& img);
 
 class tile  {
 
@@ -30,7 +34,9 @@ class tile  {
 
     virtual void settleDownOnBottom(std::vector<int> &heights) {};
     
-    virtual void isOnTheBottom(std::vector<int> &heights) {};
+    virtual bool isOnTheBottom(std::vector<int> &heights) {
+      return false;
+    };
 
 };
 
@@ -169,24 +175,29 @@ class game {
         int height;
         int width;
 
-        char[] tetris_window = "Tetris";
+        std::condition_variable& cv;
+        std::mutex& mtx;
 
     public:
+        int key;
 
-        game(int w, int h): height(h), width(w), heights(std::vector<int>(w,0) ), img( Mat::zeros(width * unit, height * unit) ), currTile(0) , i(0){
-          imshow( tetris_window, img );
-          moveWindow( tetris_window, 200, 200 );
+        game(int w, int h, std::condition_variable& _cv, std::mutex& _mtx):cv(_cv),mtx(_mtx),  height(h), width(w), heights(std::vector<int>(w,0) ), currTile(0) , i(0){
+          img = Mat::zeros(w * unit, h * unit,  CV_8UC3);
+          imshow( "Tetris", img );
+          moveWindow( "Tetris", 200, 200 );
           waitKey(1);
           std::srand(std::time(nullptr)); // use current time as seed for random generator
            
         } 
 
         void start(){
+           
             timer = new Timer([&](){
 		              this->next();
 	          }, 1000);
 
-	          t1.start(); //This method blocks, until t1 is finished!
+            std::cout << "The timer will be started!" << std::endl;
+	          timer->start(); //This method blocks, until t1 is finished!
           
         }
 
@@ -199,10 +210,19 @@ class game {
 
         void next(){
             i = i+1;
-            int key = pollKey();
+
+            if( currTile == 0){
+              newTile();
+            }
+            std::cout << "Trying to poll the key!" << std::endl;
+            key = -2;
+            cv.notify_one();
+            std::unique_lock<std::mutex> lock(mtx);
+            cv.wait(lock, [&]() { return this->key != -2; });
+            lock.unlock();
             std::cout << key << std::endl;
 
-            if(key == 4 ){ //Escape, then the game should end
+            if(key == 27 ){ //Escape, then the game should end
                timer->stop();
                return;
             }
@@ -221,7 +241,7 @@ class game {
               }
 
               if(currTile->isOnTheBottom(heights) ){
-                tiles->push_back(currTile);
+                tiles.push_back(currTile);
                 currTile->settleDownOnBottom(heights);
                 currTile = 0;
               }
@@ -230,10 +250,19 @@ class game {
 
             draw(); //Todo: Draw all the tiles , not only the current one
 
-            imshow( window, img );
-            waitKey(1);
+            std::cout << "Trying to call imshow" << std::endl;
+            key = -3;
+            cv.notify_one();
+            lock.lock();
+            cv.wait(lock, [&]{ return this->key == -4; });
+            lock.unlock();
+            std::cout << "Imshow was successful!" << std::endl;
 
             
+        }
+
+        void drawImage() {
+          cv::imshow("Tetris", img);
         }
 
         void draw(){
@@ -249,11 +278,29 @@ class game {
 
 int main( void ){
   
-
+  std::mutex mtx;
+  std::condition_variable cv;
 //Todo: Game muss Breite und Höhe wissen
-  ::game g(20, 40);
+  ::game g(20, 40, cv, mtx);
 
   g.start();
+
+  while(true){
+    std::unique_lock<std::mutex> ulock(mtx);    
+    cv.wait(ulock, [&]{ return g.key == -2; } );  //if wait condition is true ie start==false, go in
+    g.key = cv::pollKey();
+
+    ulock.unlock();                                         //5c. unlock unique_lock.
+    cv.notify_one(); 
+
+    ulock.lock();
+    cv.wait(ulock, [&]{ return g.key == -3; } );
+    g.drawImage();
+    g.key = -4;
+    ulock.unlock();
+    cv.notify_one();
+
+  }
 
   return(0);
 }
