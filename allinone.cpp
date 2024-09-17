@@ -186,8 +186,8 @@ class game {
 		              this->next();
 	          }, 1000);
 
-	          t1.start();
-            //t1.join();
+	          t1.start(); //This method blocks, until t1 is finished!
+          
         }
 
 
@@ -199,9 +199,16 @@ class game {
 
         void next(){
             i = i+1;
+            int key = pollKey();
+            std::cout << key << std::endl;
+
+            if(key == 4 ){ //Escape, then the game should end
+               timer->stop();
+               return;
+            }
 
             if( currTile!= 0){
-              int key = pollKey();
+              
               if(key == 39){
                   currTile->moveRight();
               }
@@ -221,12 +228,12 @@ class game {
 
             }
 
-            draw();
+            draw(); //Todo: Draw all the tiles , not only the current one
 
             imshow( window, img );
             waitKey(1);
 
-            std::cout << key << std::endl;
+            
         }
 
         void draw(){
@@ -234,11 +241,11 @@ class game {
             if(currTile != 0) {
                 currTile->draw(img);
             }
+
+            //Todo: Draw all the tiles
         }    
 };
 
-int x = w/2;
-int y = w/2;
 
 int main( void ){
   
@@ -248,19 +255,15 @@ int main( void ){
 
   g.start();
 
-
-
-   waitKey( 0 );
-
   return(0);
 }
 
 
-void clearImage( Mat img )
+void clearImage( cv::Mat& img )
 {
   rectangle( img,
       Point(0,0),
-      Point(w,w),
+      Point(img.cols,img.rows),
       Scalar( 0, 0, 0 ),
       FILLED,
       LINE_8 );
