@@ -290,7 +290,10 @@ int main( void ){
     cv.wait(ulock, [&]{ return g.key == -2; } );  //if wait condition is true ie start==false, go in
     g.key = cv::pollKey();
 
-    ulock.unlock();                                         //5c. unlock unique_lock.
+    ulock.unlock(); 
+    if(g.key == 27){ //Escape
+      break;
+    }                                        //5c. unlock unique_lock.
     cv.notify_one(); 
 
     ulock.lock();
@@ -301,6 +304,8 @@ int main( void ){
     cv.notify_one();
 
   }
+
+  cv.notify_one();
 
   return(0);
 }
