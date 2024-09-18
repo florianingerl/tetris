@@ -4,6 +4,7 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <functional>
 
 #include <iostream>
 #include <vector>
@@ -161,6 +162,58 @@ class Rectangle : public tile {
 
 };
 
+class opencvplatform {
+  private:
+     static std::function<void(void)> f;
+     static std::condition_variable cv;
+     static std::mutex mtx;
+
+     static bool running;
+
+  public:
+    static void runLoop() {
+       while(true){
+         std::unique_lock<std::mutex> lock(mtx);
+         cv.wait(lock, [&]{ return (!running) || f;  } ); //std::function is converted to a bool. It's true when the function pointer is not 0
+         if(!running){
+           lock.unlock();
+           cv.notify_one();
+           break;
+         }
+         f();
+         f = std::function<void(void)>();
+         lock.unlock();
+         cv.notify_one();
+       }
+    }  
+
+    static void invokeNow(std::function<void(void)> g ) {
+        std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [&]{ return !f; } );
+        f = g;
+        lock.unlock();
+        cv.notify_one();
+
+        lock.lock();
+        cv.wait(lock, [&]{ return !f; } );
+        lock.unlock();
+
+    } 
+
+    static void exit(){
+      	std::unique_lock<std::mutex> lock(mtx);
+        cv.wait(lock, [&]{ return !f; });
+        running = false;
+        lock.unlock();
+        cv.notify_one();
+    }
+};
+
+std::mutex opencvplatform::mtx = std::mutex();
+std::condition_variable opencvplatform::cv = std::condition_variable();
+std::function<void(void)> opencvplatform::f = std::function<void(void)>();
+bool opencvplatform::running = true;
+
 class game {
     private:
         tile *currTile;
@@ -215,15 +268,19 @@ class game {
               newTile();
             }
             std::cout << "Trying to poll the key!" << std::endl;
+            opencvplatform::invokeNow([&]{ this->key = cv::pollKey(); });
+            /*
             key = -2;
             cv.notify_one();
             std::unique_lock<std::mutex> lock(mtx);
             cv.wait(lock, [&]() { return this->key != -2; });
             lock.unlock();
             std::cout << key << std::endl;
+            */
 
             if(key == 27 ){ //Escape, then the game should end
                timer->stop();
+               opencvplatform::exit();
                return;
             }
 
@@ -250,19 +307,16 @@ class game {
 
             draw(); //Todo: Draw all the tiles , not only the current one
 
+            /*
             std::cout << "Trying to call imshow" << std::endl;
             key = -3;
             cv.notify_one();
             lock.lock();
             cv.wait(lock, [&]{ return this->key == -4; });
             lock.unlock();
-            std::cout << "Imshow was successful!" << std::endl;
-
-            
-        }
-
-        void drawImage() {
-          cv::imshow("Tetris", img);
+            std::cout << "Imshow was successful!" << std::endl; */
+            opencvplatform::invokeNow( [&]{ cv::imshow("Tetris", this->img ); } );
+ 
         }
 
         void draw(){
@@ -276,6 +330,8 @@ class game {
 };
 
 
+
+
 int main( void ){
   
   std::mutex mtx;
@@ -285,6 +341,7 @@ int main( void ){
 
   g.start();
 
+  /*
   while(true){
     std::unique_lock<std::mutex> ulock(mtx);    
     cv.wait(ulock, [&]{ return g.key == -2; } );  //if wait condition is true ie start==false, go in
@@ -305,7 +362,8 @@ int main( void ){
 
   }
 
-  cv.notify_one();
+  cv.notify_one();*/
+  opencvplatform::runLoop();
 
   return(0);
 }

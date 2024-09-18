@@ -14,3 +14,8 @@ We program a tetris game in c++ with opencv
 - cmake .. -G "MinGW Makefiles"
 - mingw32-make
 - Launch game.exe
+
+# Playing
+Up until now, one random tile is created in the beginning that falls down.
+You can move the tile to the left and to the right with the respective arrow keys.
+Press Esc to exit the whole game
