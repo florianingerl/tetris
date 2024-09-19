@@ -1,0 +1,3 @@
+C:/Users/imelf/Documents/NachhilfeInfoUni/Kadala/Tetris/tetris/tetris/A/CMakeFiles/game.dir
+C:/Users/imelf/Documents/NachhilfeInfoUni/Kadala/Tetris/tetris/tetris/A/CMakeFiles/edit_cache.dir
+C:/Users/imelf/Documents/NachhilfeInfoUni/Kadala/Tetris/tetris/tetris/A/CMakeFiles/rebuild_cache.dir

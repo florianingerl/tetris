@@ -1,0 +1,11 @@
+- Add buttons
+- Tile at the bottom
+- Random colour for rectangle or other shapes
+- Move tile down quicker
+- Draw all the tiles
+- Add a score attribute
+- Check whether a row is full
+- Delete a full row and increase the score
+- Add trackbar! You can adjust the speed of the game!
+- Add button to stop the game!
+

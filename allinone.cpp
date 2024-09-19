@@ -390,7 +390,7 @@ class game {
 
 int main( void ){
   
-//Todo: Game muss Breite und Höhe wissen
+
   ::game g(10, 10);
 
   g.start();
