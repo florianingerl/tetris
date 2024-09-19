@@ -2,6 +2,9 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 
+#include <cstdlib> 
+#include <time.h>
+
 #include <cstdlib>
 #include <ctime>
 #include <functional>
@@ -35,7 +38,7 @@ class tile  {
 
     virtual void settleDownOnBottom(std::vector<int> &heights) {};
     
-    virtual bool isOnTheBottom(std::vector<int> &heights) {
+    virtual bool isOnTheBottom(int height, std::vector<int> &heights) {
       return false;
     };
 
@@ -136,15 +139,16 @@ class Rectangle : public tile {
          int width;
          int height; 
          cv::Point pos;
+         int colour; //Farbe ist eine Zahl zwischen 0 und 255
 
       public:
 
-        Rectangle(cv::Point _pos, int _width, int _height ): pos(_pos), width(_width), height(_height){}
+        Rectangle(cv::Point _pos, int _width, int _height, int _colour = 200): pos(_pos), width(_width), height(_height), colour(_colour){}
        
         void draw (cv::Mat& img) override{
            for(int i=0; i< width * unit ; i++){
                for(int j=0; j< height * unit; j++){
-                 img.at<uchar>(pos.y * unit + j, pos.x * unit + i) = 200;
+                 img.at<uchar>(pos.y * unit + j, pos.x * unit + i) = colour; //Farbe ist eine Zahl zwischen 0 und 255
                }
         
            }
@@ -158,6 +162,18 @@ class Rectangle : public tile {
     }
         void moveLeft () override {
           pos.x = pos.x -1; 
+        }
+
+        bool isOnTheBottom (int height, std::vector<int>& heights) override {
+          
+          if (this-> pos.y >= height - this->height){
+                return true; 
+          } 
+          else {
+            std::cout<< "we are not on the bottom " << std::endl; 
+            return false;
+          }
+          
         }
 
 };
@@ -227,6 +243,7 @@ class game {
 
         int height;
         int width;
+        int score = 0;
 
         std::condition_variable& cv;
         std::mutex& mtx;
@@ -234,12 +251,13 @@ class game {
     public:
         int key;
 
-        game(int w, int h, std::condition_variable& _cv, std::mutex& _mtx):cv(_cv),mtx(_mtx),  height(h), width(w), heights(std::vector<int>(w,0) ), currTile(0) , i(0){
-          img = Mat::zeros(w * unit, h * unit,  CV_8UC3);
+        game(int w, int h, std::condition_variable& _cv, std::mutex& _mtx): cv(_cv),mtx(_mtx),  height(h), width(w), heights(std::vector<int>(w,0) ), currTile(0) , i(0){
+          img = Mat::zeros(h * unit, w * unit,  CV_8UC3);
           imshow( "Tetris", img );
+          srand(time (0) );
           moveWindow( "Tetris", 200, 200 );
           waitKey(1);
-          std::srand(std::time(nullptr)); // use current time as seed for random generator
+          // use current time as seed for random generator
            
         } 
 
@@ -258,7 +276,7 @@ class game {
         void newTile() {
            int widthRect = 1;
            int random_value = std::rand()%(width-widthRect); //Random_value ist jetzt Zufallszahl zwischen u und 380
-           currTile = new ::Rectangle( cv::Point(random_value,0), widthRect, 3 );
+           currTile = new ::Rectangle( cv::Point(random_value,0),widthRect, 3, std::rand()%256 );
         }
 
         void next(){
@@ -269,6 +287,7 @@ class game {
             }
             std::cout << "Trying to poll the key!" << std::endl;
             opencvplatform::invokeNow([&]{ this->key = cv::pollKey(); });
+            std::cout << this->key << std::endl;
             /*
             key = -2;
             cv.notify_one();
@@ -293,11 +312,16 @@ class game {
                   currTile->moveLeft();
               }
 
-              if(i % 3 == 0){
+              else if (key == 40 && !currTile->isOnTheBottom(height, heights) ){
+                currTile-> moveDown(); 
+              }
+
+
+              if(i % 3 == 0 && !currTile->isOnTheBottom(height, heights) ){
                   currTile->moveDown();
               }
 
-              if(currTile->isOnTheBottom(heights) ){
+              if(currTile->isOnTheBottom(height, heights) ){
                 tiles.push_back(currTile);
                 currTile->settleDownOnBottom(heights);
                 currTile = 0;
@@ -323,6 +347,14 @@ class game {
             clearImage( img );
             if(currTile != 0) {
                 currTile->draw(img);
+            }
+
+            /*for(auto it = tiles.begin(); it!=tiles.end(); ++it){
+              (*it)->draw(img);
+            }*/
+            
+            for (auto tile : tiles){
+              tile->draw(img); 
             }
 
             //Todo: Draw all the tiles
