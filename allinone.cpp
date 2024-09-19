@@ -3,6 +3,7 @@
 #include <opencv2/highgui.hpp>
 
 #include <cstdlib> 
+#include <chrono>
 #include <time.h>
 
 #include <cstdlib>
@@ -16,11 +17,13 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <cstdint>
 
 #include "timer.h"
 
 #define unit 20
 using namespace cv;
+using namespace std::chrono;
 
 void clearImage(Mat& img);
 
@@ -236,7 +239,6 @@ class game {
         cv::Mat img;
 
         int i;
-        Timer *timer;
 
         std::list<tile *> tiles;
         std::vector<int> heights;
@@ -245,13 +247,13 @@ class game {
         int width;
         int score = 0;
 
-        std::condition_variable& cv;
-        std::mutex& mtx;
+        int stepms = 1000;
+        bool stopped = false;
 
     public:
         int key;
 
-        game(int w, int h, std::condition_variable& _cv, std::mutex& _mtx): cv(_cv),mtx(_mtx),  height(h), width(w), heights(std::vector<int>(w,0) ), currTile(0) , i(0){
+        game(int w, int h):  height(h), width(w), heights(std::vector<int>(w,0) ), currTile(0) , i(0){
           img = Mat::zeros(h * unit, w * unit,  CV_8UC3);
           imshow( "Tetris", img );
           srand(time (0) );
@@ -263,12 +265,17 @@ class game {
 
         void start(){
            
+            /*
             timer = new Timer([&](){
 		              this->next();
 	          }, 1000);
 
             std::cout << "The timer will be started!" << std::endl;
-	          timer->start(); //This method blocks, until t1 is finished!
+	          timer->start(); //This method blocks, until t1 is finished! 
+            */
+            while(!stopped){
+               this->next();
+            }
           
         }
 
@@ -286,7 +293,21 @@ class game {
               newTile();
             }
             std::cout << "Trying to poll the key!" << std::endl;
-            opencvplatform::invokeNow([&]{ this->key = cv::pollKey(); });
+  
+            //opencvplatform::invokeNow([&]{ this->key = cv::pollKey(); });
+            int towaitms = stepms;
+            auto start = std::chrono::steady_clock::now();
+            this->key = -1;
+            do {
+
+              int newKey = waitKey(towaitms);
+              if(newKey != -1){
+                this->key = newKey;
+              }
+              auto end = std::chrono::steady_clock::now();
+              towaitms = stepms - std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+            } while( towaitms > 0);
+
             std::cout << this->key << std::endl;
             /*
             key = -2;
@@ -298,8 +319,9 @@ class game {
             */
 
             if(key == 27 ){ //Escape, then the game should end
-               timer->stop();
-               opencvplatform::exit();
+               //timer->stop();
+               //opencvplatform::exit();
+               stopped = true;
                return;
             }
 
@@ -339,7 +361,9 @@ class game {
             cv.wait(lock, [&]{ return this->key == -4; });
             lock.unlock();
             std::cout << "Imshow was successful!" << std::endl; */
-            opencvplatform::invokeNow( [&]{ cv::imshow("Tetris", this->img ); } );
+            //opencvplatform::invokeNow( [&]{ cv::imshow("Tetris", this->img ); } );
+            imshow("Tetris", this->img );
+            waitKey(1);
  
         }
 
@@ -366,10 +390,8 @@ class game {
 
 int main( void ){
   
-  std::mutex mtx;
-  std::condition_variable cv;
 //Todo: Game muss Breite und Höhe wissen
-  ::game g(20, 40, cv, mtx);
+  ::game g(10, 10);
 
   g.start();
 
@@ -395,7 +417,7 @@ int main( void ){
   }
 
   cv.notify_one();*/
-  opencvplatform::runLoop();
+  //opencvplatform::runLoop();
 
   return(0);
 }
