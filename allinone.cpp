@@ -142,16 +142,16 @@ class Rectangle : public tile {
          int width;
          int height; 
          cv::Point pos;
-         int colour; //Farbe ist eine Zahl zwischen 0 und 255
+         cv::Vec3b colour; //Farbe ist eine Zahl zwischen 0 und 255
 
       public:
 
-        Rectangle(cv::Point _pos, int _width, int _height, int _colour = 200): pos(_pos), width(_width), height(_height), colour(_colour){}
+        Rectangle(cv::Point _pos, int _width, int _height, cv::Vec3b _colour = cv::Vec3b(0,255,0)): pos(_pos), width(_width), height(_height), colour(_colour){}
        
         void draw (cv::Mat& img) override{
            for(int i=0; i< width * unit ; i++){
                for(int j=0; j< height * unit; j++){
-                 img.at<uchar>(pos.y * unit + j, pos.x * unit + i) = colour; //Farbe ist eine Zahl zwischen 0 und 255
+                 img.at<cv::Vec3b>(pos.y * unit + j, pos.x * unit + i) = colour; //Farbe ist eine Zahl zwischen 0 und 255
                }
         
            }
@@ -233,6 +233,14 @@ std::condition_variable opencvplatform::cv = std::condition_variable();
 std::function<void(void)> opencvplatform::f = std::function<void(void)>();
 bool opencvplatform::running = true;
 
+void buttonExitClicked(int state, void* userdata){
+  std::cout << "The exit button was clicked! " << std::endl;
+}
+
+void handleMouseEventsGlobal(int event, int x, int y, int flags, void* userdata);
+
+     
+
 class game {
     private:
         tile *currTile;
@@ -249,8 +257,11 @@ class game {
 
         int stepms = 1000;
         bool stopped = false;
+       
+      
 
     public:
+        bool pause = false; 
         int key;
 
         game(int w, int h):  height(h), width(w), heights(std::vector<int>(w,0) ), currTile(0) , i(0){
@@ -258,21 +269,21 @@ class game {
           imshow( "Tetris", img );
           srand(time (0) );
           moveWindow( "Tetris", 200, 200 );
+          setMouseCallback("Tetris", handleMouseEventsGlobal, this);
           waitKey(1);
-          // use current time as seed for random generator
            
         } 
 
+        void handleMouseEvents(int event, int x, int y, int flags){
+            if  ( event == EVENT_LBUTTONDOWN && (flags & cv::MouseEventFlags::EVENT_FLAG_LBUTTON != 0) && x < 301 && y < 31 ){
+              pause = pause ? false : true;
+              std::cout << "Pause=" << (pause ? "Pause is on" : "Pause is off") << std::endl;
+            }
+                 
+        }
+
         void start(){
            
-            /*
-            timer = new Timer([&](){
-		              this->next();
-	          }, 1000);
-
-            std::cout << "The timer will be started!" << std::endl;
-	          timer->start(); //This method blocks, until t1 is finished! 
-            */
             while(!stopped){
                this->next();
             }
@@ -283,7 +294,7 @@ class game {
         void newTile() {
            int widthRect = 1;
            int random_value = std::rand()%(width-widthRect); //Random_value ist jetzt Zufallszahl zwischen u und 380
-           currTile = new ::Rectangle( cv::Point(random_value,0),widthRect, 3, std::rand()%256 );
+           currTile = new ::Rectangle( cv::Point(random_value,0),widthRect, 3, cv::Vec3b(std::rand()%256,std::rand()%256,std::rand()%256) );
         }
 
         void next(){
@@ -309,23 +320,21 @@ class game {
             } while( towaitms > 0);
 
             std::cout << this->key << std::endl;
-            /*
-            key = -2;
-            cv.notify_one();
-            std::unique_lock<std::mutex> lock(mtx);
-            cv.wait(lock, [&]() { return this->key != -2; });
-            lock.unlock();
-            std::cout << key << std::endl;
-            */
 
             if(key == 27 ){ //Escape, then the game should end
-               //timer->stop();
-               //opencvplatform::exit();
                stopped = true;
                return;
             }
-
-            if( currTile!= 0){
+             
+             if (key ==112 ){
+              if(pause){
+                 pause = false;
+              } 
+              else {
+                pause = true; 
+              }
+             }
+            if( currTile!= 0 && !pause){
               
               if(key == 39){
                   currTile->moveRight();
@@ -351,17 +360,7 @@ class game {
 
             }
 
-            draw(); //Todo: Draw all the tiles , not only the current one
-
-            /*
-            std::cout << "Trying to call imshow" << std::endl;
-            key = -3;
-            cv.notify_one();
-            lock.lock();
-            cv.wait(lock, [&]{ return this->key == -4; });
-            lock.unlock();
-            std::cout << "Imshow was successful!" << std::endl; */
-            //opencvplatform::invokeNow( [&]{ cv::imshow("Tetris", this->img ); } );
+            draw(); 
             imshow("Tetris", this->img );
             waitKey(1);
  
@@ -373,52 +372,16 @@ class game {
                 currTile->draw(img);
             }
 
-            /*for(auto it = tiles.begin(); it!=tiles.end(); ++it){
-              (*it)->draw(img);
-            }*/
-            
             for (auto tile : tiles){
               tile->draw(img); 
             }
-
-            //Todo: Draw all the tiles
         }    
 };
 
 
-
-
 int main( void ){
-  
-
   ::game g(10, 10);
-
   g.start();
-
-  /*
-  while(true){
-    std::unique_lock<std::mutex> ulock(mtx);    
-    cv.wait(ulock, [&]{ return g.key == -2; } );  //if wait condition is true ie start==false, go in
-    g.key = cv::pollKey();
-
-    ulock.unlock(); 
-    if(g.key == 27){ //Escape
-      break;
-    }                                        //5c. unlock unique_lock.
-    cv.notify_one(); 
-
-    ulock.lock();
-    cv.wait(ulock, [&]{ return g.key == -3; } );
-    g.drawImage();
-    g.key = -4;
-    ulock.unlock();
-    cv.notify_one();
-
-  }
-
-  cv.notify_one();*/
-  //opencvplatform::runLoop();
-
   return(0);
 }
 
@@ -431,4 +394,31 @@ void clearImage( cv::Mat& img )
       Scalar( 0, 0, 0 ),
       FILLED,
       LINE_8 );
+
+     rectangle( img, 
+        Point (0,0),
+        Point (300,30),
+        Scalar (0,255,0),
+        FILLED,
+        LINE_8 
+              
+      );  
+
+      cv::putText(img, //target image
+            "PAUSE", //text
+            cv::Point(10, 27), //top-left position
+            cv::FONT_HERSHEY_DUPLEX,
+            1.0,
+            CV_RGB(118, 185, 0), //font color
+            2);
 }
+
+
+void handleMouseEventsGlobal(int event, int x, int y, int flags, void* userdata){
+    std::cout << "x=" << x << " y=" << y << std::endl;
+    ::game* g = reinterpret_cast<::game*>(userdata);
+    g->handleMouseEvents(event, x, y, flags);
+}
+
+      
+     
